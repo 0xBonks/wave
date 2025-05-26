@@ -22,8 +22,105 @@ class DataLoader:
     YAHOO_CLIENT_ID = os.getenv('ClientID')
     YAHOO_CLIENT_SECRET = os.getenv('ClientSecret')
     
+    # Liste deutscher Börsen für Yahoo Finance
+    GERMAN_EXCHANGES = {
+        'FRA': '.F',    # Frankfurt
+        'XETR': '.DE',  # Xetra
+        'BER': '.BE',   # Berlin
+        'STU': '.SG',   # Stuttgart
+        'MUN': '.MU',   # München
+        'HAM': '.HM',   # Hamburg
+        'HAN': '.HA',   # Hannover
+        'DUS': '.DU',   # Düsseldorf
+    }
+    
+    # Liste bekannter US-Aktien und Indizes
+    US_SYMBOLS = [
+        'AAPL', 'MSFT', 'AMZN', 'GOOGL', 'GOOG', 'META', 'TSLA', 'NVDA', 'JPM', 'V', 
+        'JNJ', 'WMT', 'PG', 'MA', 'UNH', 'HD', 'BAC', 'DIS', 'ADBE', 'CRM',
+        'NFLX', 'INTC', 'CSCO', 'VZ', 'PFE', 'KO', 'PEP', 'T', 'MRK', 'XOM'
+    ]
+    
+    # Liste der US-Indizes
+    US_INDICES = [
+        '^GSPC',  # S&P 500
+        '^DJI',   # Dow Jones Industrial Average
+        '^IXIC',  # NASDAQ Composite
+        '^RUT',   # Russell 2000
+        '^VIX'    # Volatility Index
+    ]
+    
+    # Standard-Börse für deutsche Aktien
+    DEFAULT_GERMAN_EXCHANGE = 'XETR'
+    
     @staticmethod
-    def load_data(source, start_date=None, end_date=None):
+    def is_us_symbol(symbol):
+        """
+        Prüft, ob es sich um ein US-Symbol handelt.
+        
+        Args:
+            symbol (str): Das zu prüfende Symbol
+            
+        Returns:
+            bool: True, wenn es sich um ein US-Symbol handelt
+        """
+        # Entferne mögliche Suffixe für den Vergleich
+        base_symbol = symbol.split('.')[0]
+        
+        # Prüfe, ob es ein bekanntes US-Symbol oder Index ist
+        return (base_symbol in DataLoader.US_SYMBOLS or 
+                symbol in DataLoader.US_INDICES or
+                symbol.startswith('^'))
+    
+    @staticmethod
+    def format_german_symbol(symbol, exchange=None):
+        """
+        Formatiert ein Symbol für den deutschen Markt.
+        
+        Args:
+            symbol (str): Das Basis-Symbol (z.B. 'SAP')
+            exchange (str, optional): Die Börse (z.B. 'XETR', 'FRA')
+            
+        Returns:
+            str: Das formatierte Symbol (z.B. 'SAP.DE')
+        """
+        # Wenn es ein US-Symbol ist, nicht formatieren
+        if DataLoader.is_us_symbol(symbol):
+            return symbol
+            
+        # Prüfe, ob bereits ein Suffix vorhanden ist
+        if any(suffix in symbol for suffix in DataLoader.GERMAN_EXCHANGES.values()):
+            return symbol
+            
+        # Wenn eine Börse angegeben wurde, verwende deren Suffix
+        if exchange and exchange in DataLoader.GERMAN_EXCHANGES:
+            return f"{symbol}{DataLoader.GERMAN_EXCHANGES[exchange]}"
+            
+        # Ansonsten verwende die Standardbörse
+        return f"{symbol}{DataLoader.GERMAN_EXCHANGES[DataLoader.DEFAULT_GERMAN_EXCHANGE]}"
+    
+    @staticmethod
+    def is_german_index(symbol):
+        """
+        Prüft, ob es sich um einen deutschen Index handelt.
+        
+        Args:
+            symbol (str): Das zu prüfende Symbol
+            
+        Returns:
+            bool: True, wenn es sich um einen deutschen Index handelt
+        """
+        german_indices = [
+            'DAX', '^GDAXI',     # DAX
+            'MDAX', '^MDAXI',    # MDAX
+            'SDAX', '^SDAXI',    # SDAX
+            'TecDAX', '^TDXP',   # TecDAX
+            'HDAX', '^HDAXI',    # HDAX
+        ]
+        return symbol in german_indices
+    
+    @staticmethod
+    def load_data(source, start_date=None, end_date=None, exchange=None):
         """
         Lädt Marktdaten aus einer Datei oder von Yahoo Finance.
         
@@ -31,6 +128,7 @@ class DataLoader:
             source (str): Dateipfad oder Tickersymbol
             start_date (str, optional): Startdatum im Format 'YYYY-MM-DD'
             end_date (str, optional): Enddatum im Format 'YYYY-MM-DD'
+            exchange (str, optional): Deutsche Börse (z.B. 'XETR', 'FRA')
             
         Returns:
             pandas.DataFrame: DataFrame mit OHLCV-Daten
@@ -45,6 +143,27 @@ class DataLoader:
         
         # Andernfalls versuche, es als Symbol für Yahoo Finance zu interpretieren
         else:
+            # Prüfe, ob es ein deutscher Index ist
+            if DataLoader.is_german_index(source):
+                # Verwende das korrekte Symbol für den Index
+                if source == 'DAX':
+                    source = '^GDAXI'
+                elif source == 'MDAX':
+                    source = '^MDAXI'
+                elif source == 'SDAX':
+                    source = '^SDAXI'
+                elif source == 'TecDAX':
+                    source = '^TDXP'
+                elif source == 'HDAX':
+                    source = '^HDAXI'
+            # Prüfe, ob es ein US-Symbol ist
+            elif DataLoader.is_us_symbol(source):
+                # Für US-Symbole keine weitere Formatierung
+                pass
+            # Ansonsten formatiere es als deutsches Aktien-Symbol, wenn keine Datei vorliegt
+            elif not any(suffix in source for suffix in DataLoader.GERMAN_EXCHANGES.values()):
+                source = DataLoader.format_german_symbol(source, exchange)
+                
             return DataLoader._load_from_yahoo(source, start_date, end_date)
     
     @staticmethod
@@ -87,6 +206,7 @@ class DataLoader:
             pandas.DataFrame: DataFrame mit OHLCV-Daten
         """
         try:
+            print(f"Lade Daten für Symbol: {symbol}")
             df = yf.download(symbol, start=start_date, end=end_date)
             
             # Überprüfe, ob Daten heruntergeladen wurden
@@ -98,16 +218,38 @@ class DataLoader:
             raise Exception(f"Fehler beim Herunterladen der Daten für {symbol}: {str(e)}")
     
     @staticmethod
-    def get_live_data(symbol):
+    def get_live_data(symbol, exchange=None):
         """
         Holt aktuelle Live-Daten von Yahoo Finance API.
         
         Args:
             symbol (str): Aktien-Tickersymbol
+            exchange (str, optional): Deutsche Börse (z.B. 'XETR', 'FRA')
             
         Returns:
             dict: Aktuelle Marktdaten für das Symbol
         """
+        # Prüfe, ob es ein deutscher Index ist
+        if DataLoader.is_german_index(symbol):
+            # Verwende das korrekte Symbol für den Index
+            if symbol == 'DAX':
+                symbol = '^GDAXI'
+            elif symbol == 'MDAX':
+                symbol = '^MDAXI'
+            elif symbol == 'SDAX':
+                symbol = '^SDAXI'
+            elif symbol == 'TecDAX':
+                symbol = '^TDXP'
+            elif symbol == 'HDAX':
+                symbol = '^HDAXI'
+        # Prüfe, ob es ein US-Symbol ist
+        elif DataLoader.is_us_symbol(symbol):
+            # Für US-Symbole keine weitere Formatierung
+            pass
+        # Ansonsten formatiere es als deutsches Aktien-Symbol, wenn nötig
+        elif not any(suffix in symbol for suffix in DataLoader.GERMAN_EXCHANGES.values()):
+            symbol = DataLoader.format_german_symbol(symbol, exchange)
+            
         # Da die API-Anfragen zu 401-Fehlern führen, nutzen wir direkt den Fallback
         # Prüfe nur, ob API-Schlüssel vorhanden sind, nutze sie aber nicht mehr direkt
         if all([DataLoader.YAHOO_APP_ID, DataLoader.YAHOO_CLIENT_ID, DataLoader.YAHOO_CLIENT_SECRET]):
@@ -158,13 +300,14 @@ class DataLoader:
             raise Exception(f"Fehler beim Abrufen der Live-Daten für {symbol}: {str(e)}")
     
     @staticmethod
-    def get_recent_data(symbol, days=60):
+    def get_recent_data(symbol, days=60, exchange=None):
         """
         Holt die Daten der letzten X Tage für ein Symbol.
         
         Args:
             symbol (str): Aktien-Tickersymbol
             days (int): Anzahl der Tage zurück (Standard: 60)
+            exchange (str, optional): Deutsche Börse (z.B. 'XETR', 'FRA')
             
         Returns:
             pandas.DataFrame: DataFrame mit OHLCV-Daten der letzten X Tage
@@ -172,6 +315,27 @@ class DataLoader:
         end_date = datetime.now()
         start_date = end_date - timedelta(days=days)
         
+        # Prüfe, ob es ein deutscher Index ist
+        if DataLoader.is_german_index(symbol):
+            # Verwende das korrekte Symbol für den Index
+            if symbol == 'DAX':
+                symbol = '^GDAXI'
+            elif symbol == 'MDAX':
+                symbol = '^MDAXI'
+            elif symbol == 'SDAX':
+                symbol = '^SDAXI'
+            elif symbol == 'TecDAX':
+                symbol = '^TDXP'
+            elif symbol == 'HDAX':
+                symbol = '^HDAXI'
+        # Prüfe, ob es ein US-Symbol ist
+        elif DataLoader.is_us_symbol(symbol):
+            # Für US-Symbole keine weitere Formatierung
+            pass
+        # Ansonsten formatiere es als deutsches Aktien-Symbol, wenn nötig
+        elif not any(suffix in symbol for suffix in DataLoader.GERMAN_EXCHANGES.values()):
+            symbol = DataLoader.format_german_symbol(symbol, exchange)
+            
         return DataLoader._load_from_yahoo(
             symbol, 
             start_date.strftime('%Y-%m-%d'), 
@@ -197,15 +361,30 @@ class DataLoader:
 
 # Test-Funktion zum einfachen Testen des Datenloaders
 if __name__ == "__main__":
-    # Teste Yahoo Finance-Daten
-    df_yahoo = DataLoader.load_data("AAPL", start_date="2022-01-01", end_date="2022-12-31")
-    print("Yahoo Finance Daten:")
-    print(df_yahoo.head())
+    # Teste deutsche Aktie
+    df_sap = DataLoader.load_data("SAP", start_date="2022-01-01", end_date="2022-12-31")
+    print("SAP Daten (Xetra):")
+    print(df_sap.head())
+    
+    # Teste deutschen Index
+    df_dax = DataLoader.load_data("DAX", start_date="2022-01-01", end_date="2022-12-31")
+    print("\nDAX Daten:")
+    print(df_dax.head())
+    
+    # Teste US-Aktie
+    df_aapl = DataLoader.load_data("AAPL", start_date="2022-01-01", end_date="2022-12-31")
+    print("\nAAPL Daten (US-Markt):")
+    print(df_aapl.head())
     
     # Teste Live-Daten
-    live_data = DataLoader.get_live_data("AAPL")
-    print("\nLive Daten:")
+    live_data = DataLoader.get_live_data("SAP")
+    print("\nLive Daten (SAP):")
     print(json.dumps(live_data, indent=2))
     
+    # Teste US Live-Daten
+    live_data_us = DataLoader.get_live_data("AAPL")
+    print("\nLive Daten (AAPL):")
+    print(json.dumps(live_data_us, indent=2))
+    
     # Speichere die Daten in einer CSV-Datei zum späteren Testen des Dateiloaders
-    DataLoader.save_data(df_yahoo, "data/AAPL.csv") 
+    DataLoader.save_data(df_sap, "data/SAP.csv") 

@@ -10,6 +10,10 @@ Ein Terminal-basiertes Tool zur Analyse von Aktien mittels der Elliott-Wellen-Th
 - Backtesting der Elliott-Wellen-Analyse auf historischen Daten
 - Live-Analyse mit aktuellen Marktdaten und Vorhersagen
 - Konkrete Handelsempfehlungen mit Kauf-/Verkaufssignalen, Stop-Loss und Kurszielen
+- Interaktives Dashboard mit einstellbarem Timeframe und automatischer Aktualisierung der Daten
+- Unterstützung deutscher Börsenplätze (Xetra, Frankfurt, etc.) und Indizes (DAX, MDAX, etc.)
+- Automatische Erkennung und Unterstützung von US-Aktien und -Indizes
+- Interaktives Chart mit Zoom- und Pan-Funktionen
 
 ## Installation
 
@@ -39,7 +43,7 @@ Falls keine API-Schlüssel angegeben werden, wird ein Fallback auf die öffentli
 ## Verwendung
 
 ```bash
-python main.py --data <dateipfad_oder_symbol> --mode <analyse|backtest|live> [--start YYYY-MM-DD] [--end YYYY-MM-DD]
+python main.py --data <dateipfad_oder_symbol> --mode <analyse|backtest|live|dashboard> [--start YYYY-MM-DD] [--end YYYY-MM-DD]
 ```
 
 ### Beispiele
@@ -49,6 +53,16 @@ Analyse eines bestimmten Aktien-Symbols:
 python main.py --data AAPL --mode analyse
 ```
 
+Analyse einer deutschen Aktie:
+```bash
+python main.py --data SAP --mode analyse
+```
+
+Analyse des DAX-Index:
+```bash
+python main.py --data DAX --mode analyse
+```
+
 Backtesting mit lokaler Datei:
 ```bash
 python main.py --data data/AAPL.csv --mode backtest --start 2020-01-01 --end 2022-12-31
@@ -56,13 +70,69 @@ python main.py --data data/AAPL.csv --mode backtest --start 2020-01-01 --end 202
 
 Live-Analyse mit aktuellen Marktdaten:
 ```bash
-python main.py --data AAPL --mode live --days 90
+python main.py --data SAP --mode live --days 90
 ```
 
 Live-Analyse mit angepasster Risikotoleranz für Stop-Loss (1%):
 ```bash
-python main.py --data AAPL --mode live --days 90 --risk 0.01
+python main.py --data SAP --mode live --days 90 --risk 0.01
 ```
+
+Interaktives Dashboard mit Live-Aktualisierung:
+```bash
+python main.py --data SAP --mode dashboard --days 90 --refresh 60
+```
+
+Dashboard für US-Aktien:
+```bash
+python main.py --data AAPL --mode dashboard --days 90 --refresh 60
+```
+
+### Dashboard-Modus
+
+Der Dashboard-Modus bietet eine interaktive Benutzeroberfläche mit folgenden Funktionen:
+
+- Echtzeit-Aktualisierung der Marktdaten in einstellbaren Intervallen
+- Anpassbarer Timeframe (30, 60, 90, 180, 365 Tage)
+- Interaktive Kontrolle der Analyseparameter (ZigZag-Threshold, Risikotoleranz)
+- Auswahl verschiedener deutscher Börsenplätze (Xetra, Frankfurt, etc.)
+- Automatische Erkennung von US-Aktien und Indizes
+- Live-Chart mit Elliott-Wellen, aktuellen Preisen und Handelsempfehlungen
+- Interaktives Chart mit Zoom-, Pan- und Speicherfunktionen
+- Detaillierte Marktdaten und Handelsempfehlungen
+
+Parameter für den Dashboard-Modus:
+- `--days`: Anfänglicher Timeframe in Tagen (Standard: 90)
+- `--refresh`: Aktualisierungsintervall in Sekunden (Standard: 60)
+- `--threshold`: ZigZag-Threshold für die Wellenanalyse (Standard: 0.03)
+- `--risk`: Risikotoleranz für Handelsempfehlungen (Standard: 0.02)
+
+### Unterstützte deutsche Börsenplätze
+
+- XETR: Xetra (Standard)
+- FRA: Frankfurt
+- BER: Berlin
+- STU: Stuttgart
+- MUN: München
+- HAM: Hamburg
+- HAN: Hannover
+- DUS: Düsseldorf
+
+### Unterstützte deutsche Indizes
+
+- DAX: Deutscher Aktienindex
+- MDAX: Mid-Cap-DAX
+- SDAX: Small-Cap-DAX
+- TecDAX: Technologie-Index
+- HDAX: Composite-Index aus DAX, MDAX und TecDAX
+
+### Unterstützte US-Indizes
+
+- ^GSPC: S&P 500
+- ^DJI: Dow Jones Industrial Average
+- ^IXIC: NASDAQ Composite
+- ^RUT: Russell 2000
+- ^VIX: Volatility Index
 
 ## Datenformat
 
