@@ -787,6 +787,9 @@ def run_dashboard(args):
     is_us_symbol = DataLoader.is_us_symbol(symbol)
     exchange = tk.StringVar(value="US" if is_us_symbol else "XETR")
     
+    # Variable für Exchange-Combobox
+    exchange_combo = None
+    
     # Hauptlayout-Container
     main_frame = ttk.Frame(root)
     main_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
@@ -799,7 +802,80 @@ def run_dashboard(args):
     title_frame = ttk.Frame(header_frame)
     title_frame.pack(side=tk.LEFT, padx=10)
     
-    ttk.Label(title_frame, text=f"ELLIOTT WAVE ANALYZER - {symbol}", style='Title.TLabel').pack(side=tk.LEFT)
+    ttk.Label(title_frame, text="ELLIOTT WAVE ANALYZER", style='Title.TLabel').pack(side=tk.LEFT)
+    
+    # Suchfeld für Symbole mit Autocomplete
+    search_frame = ttk.Frame(header_frame)
+    search_frame.pack(side=tk.LEFT, padx=10)
+    
+    # Kombiniere alle verfügbaren Symbole für Autocomplete
+    all_symbols = DataLoader.US_SYMBOLS.copy()
+    all_symbols.extend(DataLoader.US_INDICES)
+    
+    # Füge gängige deutsche Aktien hinzu
+    common_german_symbols = ['SAP', 'SIE', 'ALV', 'BAS', 'BMW', 'DAI', 'DBK', 'DTE', 'EOAN', 'FRE']
+    all_symbols.extend(common_german_symbols)
+    
+    # Füge deutsche Indizes hinzu
+    all_symbols.extend(['DAX', 'MDAX', 'SDAX', 'TecDAX', 'HDAX'])
+    
+    # Sortiere alle Symbole alphabetisch
+    all_symbols.sort()
+    
+    ttk.Label(search_frame, text="Symbol:").pack(side=tk.LEFT, padx=2)
+    
+    # Variable für Suche
+    search_var = tk.StringVar(value=symbol)
+    
+    # Autocomplete-Funktion für das Suchfeld
+    def autocomplete_search(event):
+        value = event.widget.get()
+        if value == '':
+            search_dropdown['values'] = all_symbols
+        else:
+            matches = [s for s in all_symbols if value.upper() in s.upper()]
+            search_dropdown['values'] = matches
+
+    # Funktion zum Ändern des Symbols
+    def on_symbol_change(event):
+        nonlocal symbol, is_us_symbol, exchange_combo
+        new_symbol = search_var.get().strip().upper()
+        if new_symbol and new_symbol != symbol:
+            symbol = new_symbol
+            # Prüfen, ob es sich um ein US-Symbol handelt
+            new_is_us_symbol = DataLoader.is_us_symbol(symbol)
+            
+            # Wenn sich der Markt geändert hat (US <-> DE)
+            if new_is_us_symbol != is_us_symbol:
+                is_us_symbol = new_is_us_symbol
+                
+                # Exchange-Dropdown entfernen, wenn es ein US-Symbol ist
+                if is_us_symbol:
+                    if exchange_combo is not None:
+                        for widget in row1.winfo_children():
+                            if widget.winfo_class() == 'TLabel' and widget.cget('text') == 'Börse:':
+                                widget.pack_forget()
+                        exchange_combo.pack_forget()
+                else:
+                    # Exchange-Dropdown hinzufügen, wenn es ein deutsches Symbol ist
+                    ttk.Label(row1, text="Börse:").pack(side=tk.LEFT, padx=2)
+                    exchange_combo = ttk.Combobox(row1, textvariable=exchange, values=list(DataLoader.GERMAN_EXCHANGES.keys()), width=5)
+                    exchange_combo.pack(side=tk.LEFT, padx=2)
+                    exchange_combo.bind("<<ComboboxSelected>>", on_exchange_changed)
+            else:
+                is_us_symbol = new_is_us_symbol
+                
+            # Aktualisiere den Fenstertitel
+            root.title(f"Elliott Wave Analyzer - {symbol}")
+            # Aktualisiere Daten
+            update_data()
+    
+    # Erstelle das Dropdown mit Autocomplete
+    search_dropdown = ttk.Combobox(search_frame, textvariable=search_var, values=all_symbols, width=10)
+    search_dropdown.pack(side=tk.LEFT, padx=2)
+    search_dropdown.bind('<KeyRelease>', autocomplete_search)
+    search_dropdown.bind('<<ComboboxSelected>>', on_symbol_change)
+    search_dropdown.bind('<Return>', on_symbol_change)
     
     # Steuerelemente
     controls_frame = ttk.Frame(header_frame)
@@ -1188,6 +1264,38 @@ def run_dashboard(args):
     
     def on_update_button():
         """Manuelles Update bei Knopfdruck"""
+        # Prüfe, ob sich das Symbol geändert hat
+        nonlocal symbol, is_us_symbol, exchange_combo
+        new_symbol = search_var.get().strip().upper()
+        if new_symbol and new_symbol != symbol:
+            symbol = new_symbol
+            # Prüfen, ob es sich um ein US-Symbol handelt
+            new_is_us_symbol = DataLoader.is_us_symbol(symbol)
+            
+            # Wenn sich der Markt geändert hat (US <-> DE)
+            if new_is_us_symbol != is_us_symbol:
+                is_us_symbol = new_is_us_symbol
+                
+                # Exchange-Dropdown entfernen, wenn es ein US-Symbol ist
+                if is_us_symbol:
+                    if exchange_combo is not None:
+                        for widget in row1.winfo_children():
+                            if widget.winfo_class() == 'TLabel' and widget.cget('text') == 'Börse:':
+                                widget.pack_forget()
+                        exchange_combo.pack_forget()
+                else:
+                    # Exchange-Dropdown hinzufügen, wenn es ein deutsches Symbol ist
+                    ttk.Label(row1, text="Börse:").pack(side=tk.LEFT, padx=2)
+                    exchange_combo = ttk.Combobox(row1, textvariable=exchange, values=list(DataLoader.GERMAN_EXCHANGES.keys()), width=5)
+                    exchange_combo.pack(side=tk.LEFT, padx=2)
+                    exchange_combo.bind("<<ComboboxSelected>>", on_exchange_changed)
+            else:
+                is_us_symbol = new_is_us_symbol
+                
+            # Aktualisiere den Fenstertitel
+            root.title(f"Elliott Wave Analyzer - {symbol}")
+        
+        # Aktualisiere Daten
         update_data()
     
     def on_closing():
