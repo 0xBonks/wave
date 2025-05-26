@@ -699,7 +699,7 @@ def run_live_analysis(args):
                         ziel_color = 'blue'
                     
                     ax.axhline(y=ziel_preis, color=ziel_color, linestyle='--', alpha=0.7)
-                    ax.annotate(f"Ziel {i+1}: {ziel_preis:.2f} ({ziel['änderung']})", 
+                    ax.annotate(f"Z{i+1}: {ziel_preis:.2f} ({ziel['änderung']})", 
                                (hist_data.index[-1], ziel_preis), 
                                xytext=(10, 0), 
                                textcoords='offset points',
@@ -936,6 +936,17 @@ def run_dashboard(args):
     market_data.column("value", width=150)
     market_data.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
     
+    # Sentiment-Daten-Bereich
+    sentiment_frame = ttk.LabelFrame(left_frame, text="MARKTSENTIMENT")
+    sentiment_frame.pack(fill=tk.X, pady=5)
+    
+    sentiment_data = ttk.Treeview(sentiment_frame, columns=("value"), show="tree", height=5)
+    sentiment_data.heading("#0", text="Metrik")
+    sentiment_data.heading("value", text="Wert")
+    sentiment_data.column("#0", width=150)
+    sentiment_data.column("value", width=150)
+    sentiment_data.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+    
     # Wellenanalyse-Bereich
     wave_frame = ttk.LabelFrame(left_frame, text="WELLENANALYSE")
     wave_frame.pack(fill=tk.X, pady=5)
@@ -1070,6 +1081,59 @@ def run_dashboard(args):
         market_data.insert("", "end", text="Eröffnungskurs", values=(f"{live_data['open']:.2f}",))
         market_data.insert("", "end", text="Vortagesschluss", values=(f"{live_data['previous_close']:.2f}",))
         market_data.insert("", "end", text="Volumen", values=(f"{live_data['volume']:,}",))
+        
+        # Aktualisiere Sentiment-Daten
+        sentiment_data.delete(*sentiment_data.get_children())
+        
+        # Short Interest und Short Ratio anzeigen
+        if live_data.get('short_percent') is not None:
+            short_percent = live_data['short_percent']
+            short_item = sentiment_data.insert("", "end", text="Short Interest", values=(f"{short_percent:.2f}%",))
+            # Farbliche Markierung basierend auf Short Interest Level
+            if short_percent > 20:
+                sentiment_data.item(short_item, tags=('high_short',))
+            elif short_percent > 10:
+                sentiment_data.item(short_item, tags=('medium_short',))
+                
+        if live_data.get('short_ratio') is not None:
+            sentiment_data.insert("", "end", text="Days to Cover", values=(f"{live_data['short_ratio']:.2f}",))
+        
+        # Put/Call Ratio anzeigen
+        if live_data.get('put_call_ratio') is not None:
+            put_call = live_data['put_call_ratio']
+            pc_item = sentiment_data.insert("", "end", text="Put/Call Ratio", values=(f"{put_call:.2f}",))
+            
+            # Farbliche Markierung des Put/Call Ratio
+            # > 1.0 bedeutet mehr Puts als Calls (bearish)
+            # < 0.7 bedeutet mehr Calls als Puts (bullish)
+            if put_call > 1.0:
+                sentiment_data.item(pc_item, tags=('bearish',))
+            elif put_call < 0.7:
+                sentiment_data.item(pc_item, tags=('bullish',))
+        
+        # Optionsvolumen anzeigen, wenn verfügbar
+        if live_data.get('options_data') and 'total_options_volume' in live_data['options_data']:
+            options_data = live_data['options_data']
+            
+            # Nächstes Verfallsdatum anzeigen
+            if 'expiry_date' in options_data:
+                sentiment_data.insert("", "end", text="Options Verfallsdatum", 
+                                    values=(options_data['expiry_date'],))
+            
+            # Calls und Puts Volumen anzeigen
+            if 'calls_volume' in options_data and 'puts_volume' in options_data:
+                calls_volume = options_data['calls_volume']
+                puts_volume = options_data['puts_volume']
+                
+                if calls_volume > 0 or puts_volume > 0:
+                    sentiment_data.insert("", "end", text="Calls/Puts Volumen", 
+                                        values=(f"{calls_volume:,} / {puts_volume:,}",))
+        
+        # Farbkonfiguration für Sentiment-Daten
+        sentiment_data.tag_configure('high_short', foreground='#FF4500')  # OrangeRed
+        sentiment_data.tag_configure('medium_short', foreground='#FFA500')  # Orange
+        sentiment_data.tag_configure('bearish', foreground=colors['down'])  # Rot
+        sentiment_data.tag_configure('bullish', foreground=colors['up'])  # Grün
         
         # Aktualisiere Welleninfo
         wave_info.delete(1.0, tk.END)
@@ -1238,7 +1302,7 @@ def run_dashboard(args):
                         ziel_color = '#00FFFF'  # Cyan
                     
                     ax.axhline(y=ziel_preis, color=ziel_color, linestyle='--', alpha=0.7)
-                    ax.annotate(f"Z{i+1}: {ziel_preis:.2f}", 
+                    ax.annotate(f"Z{i+1}: {ziel_preis:.2f} ({ziel['änderung']})", 
                                (data_cache['hist_data'].index[-1], ziel_preis), 
                                xytext=(10, 0), 
                                textcoords='offset points',

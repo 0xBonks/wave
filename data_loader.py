@@ -282,6 +282,44 @@ class DataLoader:
                 
             last_quote = live_data.iloc[-1]
             
+            # Sammle Sentiment-Daten (Short Interest und Options-Daten)
+            short_percent = info.get('shortPercentOfFloat', None)
+            if short_percent is not None:
+                # Konvertiere in Prozent falls als Dezimalwert
+                if short_percent < 1:
+                    short_percent = short_percent * 100
+            
+            # Hole Optionsdaten, wenn verfügbar
+            put_call_ratio = None
+            options_data = {}
+            try:
+                # Prüfe, ob Optionen verfügbar sind
+                exp_dates = ticker.options
+                
+                if exp_dates:
+                    # Nimm das nächste Verfallsdatum
+                    nearest_date = exp_dates[0]
+                    
+                    # Hole Optionen für dieses Datum
+                    options = ticker.option_chain(nearest_date)
+                    
+                    # Berechne Put/Call Ratio
+                    total_calls_volume = options.calls['volume'].sum() if 'volume' in options.calls.columns else 0
+                    total_puts_volume = options.puts['volume'].sum() if 'volume' in options.puts.columns else 0
+                    
+                    if total_calls_volume > 0:
+                        put_call_ratio = total_puts_volume / total_calls_volume
+                    
+                    # Sammle weitere Optionsdaten
+                    options_data = {
+                        'expiry_date': nearest_date,
+                        'calls_volume': total_calls_volume,
+                        'puts_volume': total_puts_volume,
+                        'total_options_volume': total_calls_volume + total_puts_volume
+                    }
+            except Exception as e:
+                print(f"Keine Optionsdaten verfügbar für {symbol}: {str(e)}")
+            
             # Stelle sicher, dass alle Werte als native Python-Typen (nicht numpy) zurückgegeben werden
             return {
                 'symbol': symbol,
@@ -294,7 +332,12 @@ class DataLoader:
                 'previous_close': float(info.get('previousClose', 0)) if info.get('previousClose') else None,
                 'open': float(last_quote.get('Open', 0)),
                 'day_high': float(last_quote.get('High', 0)),
-                'day_low': float(last_quote.get('Low', 0))
+                'day_low': float(last_quote.get('Low', 0)),
+                # Neue Sentiment-Daten
+                'short_percent': short_percent,
+                'short_ratio': info.get('shortRatio', None),  # Days to Cover
+                'put_call_ratio': put_call_ratio,
+                'options_data': options_data
             }
         except Exception as e:
             raise Exception(f"Fehler beim Abrufen der Live-Daten für {symbol}: {str(e)}")
